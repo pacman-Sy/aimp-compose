@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.AimpCompose" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorBackground">#FF1E1E1E</item>
+        <item name="android:statusBarColor">#FF1E1E1E</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

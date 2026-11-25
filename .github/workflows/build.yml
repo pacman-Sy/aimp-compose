@@ -1,0 +1,56 @@
+name: build-aimp-compose
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  ANDROID_HOME: /usr/local/lib/android/sdk
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Accept SDK licenses and install components
+        shell: bash
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -1)
+          echo "sdkmanager=$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build debug APK
+        run: gradle assembleDebug --no-daemon
+
+      - name: Locate APK
+        id: apk
+        run: echo "path=$(find app/build/outputs/apk/debug -name '*.apk' | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to gofile
+        id: gofile
+        shell: bash
+        run: |
+          RESP=$(curl -s -F "file=@${{ steps.apk.outputs.path }}" https://upload.gofile.io/uploadFile)
+          PAGE=$(echo "$RESP" | jq -r '.data.downloadPage')
+          echo "Gofile: $PAGE"
+          echo "### AIMP Compose build" >> "$GITHUB_STEP_SUMMARY"
+          echo "Download: $PAGE" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aimp-compose
+          path: ${{ steps.apk.outputs.path }}
