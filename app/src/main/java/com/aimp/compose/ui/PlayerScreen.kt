@@ -21,11 +21,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Equalizer
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -33,13 +33,14 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -50,20 +51,36 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.aimp.compose.R
 import com.aimp.compose.lyrics.LyricLine
+import com.aimp.compose.playback.LyricsUiState
 import com.aimp.compose.playback.PlayerIntent
 import com.aimp.compose.playback.PlayerViewModel
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(navController: NavController? = null, vm: PlayerViewModel = hiltViewModel()) {
     val state by vm.state.collectAsState()
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("AIMP", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.primary
+                ),
+                actions = {
+                    IconButton(onClick = { navController?.navigate("settings") }) {
+                        Icon(Icons.Filled.Settings, null, tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            )
+        },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
                 NavigationBarItem(
                     selected = true,
                     onClick = { navController?.navigate("player") },
-                    icon = { Icon(Icons.Filled.Home, null) },
+                    icon = { Icon(painterResource(R.drawable.aimp_play), null) },
                     label = { Text("Player") }
                 )
                 NavigationBarItem(
@@ -76,7 +93,7 @@ fun PlayerScreen(navController: NavController? = null, vm: PlayerViewModel = hil
                     selected = false,
                     onClick = { navController?.navigate("equalizer") },
                     icon = { Icon(Icons.Filled.Equalizer, null) },
-                    label = { Text("Equalizer") }
+                    label = { Text("DSP") }
                 )
                 NavigationBarItem(
                     selected = false,
@@ -85,104 +102,135 @@ fun PlayerScreen(navController: NavController? = null, vm: PlayerViewModel = hil
                     label = { Text("Settings") }
                 )
             }
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = state.track?.title ?: "No track",
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
             )
-            Text(text = state.track?.artist ?: "", color = MaterialTheme.colorScheme.onBackground)
+            Text(
+                text = state.track?.let { "${it.artist} — ${it.album}" } ?: "",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp,
+                maxLines = 1
+            )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
 
             Box(
                 modifier = Modifier
-                    .size(240.dp)
+                    .size(260.dp)
                     .background(MaterialTheme.colorScheme.surface)
                     .pointerInput(Unit) {
-                        detectTapGestures(
-                            onDoubleTap = { offset ->
-                                if (offset.x < size.width / 2) vm.handle(PlayerIntent.Seek(state.positionMs - 10_000))
-                                else vm.handle(PlayerIntent.Seek(state.positionMs + 10_000))
-                            }
-                        )
+                        detectTapGestures(onDoubleTap = { offset ->
+                            if (offset.x < size.width / 2)
+                                vm.handle(PlayerIntent.Seek(state.positionMs - 10_000))
+                            else
+                                vm.handle(PlayerIntent.Seek(state.positionMs + 10_000))
+                        })
                     }
                     .pointerInput(Unit) {
-                        detectHorizontalDragGestures { _, dragAmount ->
-                            if (dragAmount > 80) vm.handle(PlayerIntent.Prev)
-                            else if (dragAmount < -80) vm.handle(PlayerIntent.Next)
+                        detectHorizontalDragGestures { _, drag ->
+                            if (drag > 80) vm.handle(PlayerIntent.Prev)
+                            else if (drag < -80) vm.handle(PlayerIntent.Next)
                         }
                     },
                 contentAlignment = Alignment.Center
             ) {
                 Image(
-                    painter = painterResource(R.drawable.ic_stat_note),
+                    painter = painterResource(R.drawable.aimp_art),
                     contentDescription = null,
-                    modifier = Modifier.size(96.dp),
+                    modifier = Modifier.size(120.dp),
                     contentScale = ContentScale.Fit
                 )
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
             LinearProgressIndicator(
-                progress = if (state.durationMs > 0) state.positionMs.toFloat() / state.durationMs else 0f,
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.primary
+                progress = { if (state.durationMs > 0) state.positionMs.toFloat() / state.durationMs else 0f },
+                modifier = Modifier.fillMaxWidth().height(3.dp),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surface
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(formatTime(state.positionMs), fontSize = 11.sp)
-                Text(formatTime(state.durationMs), fontSize = 11.sp)
+                Text(formatTime(state.positionMs), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(formatTime(state.durationMs), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+
+            Spacer(Modifier.height(8.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(onClick = { vm.handle(PlayerIntent.Prev) }) { Text("|<<") }
-                Button(onClick = { vm.handle(PlayerIntent.TogglePlay) }) {
-                    Text(if (state.isPlaying) "Pause" else "Play")
+                IconButton(onClick = { vm.handle(PlayerIntent.Prev) }) {
+                    Icon(painterResource(R.drawable.aimp_prev), null, tint = MaterialTheme.colorScheme.onBackground)
                 }
-                Button(onClick = { vm.handle(PlayerIntent.Next) }) { Text(">>|") }
+                IconButton(onClick = { vm.handle(PlayerIntent.TogglePlay) }) {
+                    Icon(
+                        painter = painterResource(if (state.isPlaying) R.drawable.aimp_pause else R.drawable.aimp_play),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+                IconButton(onClick = { vm.handle(PlayerIntent.Next) }) {
+                    Icon(painterResource(R.drawable.aimp_next), null, tint = MaterialTheme.colorScheme.onBackground)
+                }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Speed", fontSize = 12.sp)
+                Text("Speed", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Slider(
                     value = state.speed,
                     onValueChange = { vm.handle(PlayerIntent.SetSpeed(it)) },
                     valueRange = 0.25f..3f,
-                    modifier = Modifier.width(160.dp)
+                    modifier = Modifier.width(120.dp)
                 )
             }
 
-            Spacer(Modifier.height(12.dp))
-            Text(
-                "Lyrics",
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row {
-                Button(onClick = { vm.handle(PlayerIntent.SetLyricsMode(0)) }) { Text("Synced") }
-                Button(onClick = { vm.handle(PlayerIntent.SetLyricsMode(1)) }) { Text("Plain") }
-                Button(onClick = { vm.handle(PlayerIntent.RefreshLyrics) }) { Text("Refresh") }
+            Spacer(Modifier.height(6.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.surface)
+            Spacer(Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Lyrics", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Row {
+                    TextButtonMini("SYNCED", state.lyricsMode == 0) { vm.handle(PlayerIntent.SetLyricsMode(0)) }
+                    TextButtonMini("PLAIN", state.lyricsMode == 1) { vm.handle(PlayerIntent.SetLyricsMode(1)) }
+                    TextButtonMini("REFRESH", false) { vm.handle(PlayerIntent.RefreshLyrics) }
+                }
             }
+
             LyricsPanel(vm, state.lyrics, state.currentLine, state.lyricsSynced, state.lyricsState, state.lyricsMode)
         }
+    }
+}
+
+@Composable
+private fun TextButtonMini(label: String, active: Boolean, onClick: () -> Unit) {
+    androidx.compose.material3.TextButton(onClick = onClick) {
+        Text(label, color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -192,7 +240,7 @@ private fun LyricsPanel(
     lines: List<LyricLine>,
     currentLine: Int,
     synced: Boolean,
-    lyricsState: com.aimp.compose.playback.LyricsUiState,
+    lyricsState: LyricsUiState,
     mode: Int
 ) {
     val listState = rememberLazyListState()
@@ -201,37 +249,40 @@ private fun LyricsPanel(
     }
 
     when {
-        lyricsState is com.aimp.compose.playback.LyricsUiState.Loading ->
-            Text("Loading lyrics…", color = MaterialTheme.colorScheme.onBackground)
-        lyricsState is com.aimp.compose.playback.LyricsUiState.NotFound ->
+        lyricsState is LyricsUiState.Loading ->
+            Text("Loading lyrics…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        lyricsState is LyricsUiState.NotFound ->
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Lyrics not found", color = MaterialTheme.colorScheme.onBackground)
-                Button(onClick = { vm.handle(PlayerIntent.RefreshLyrics) }) { Text("Retry") }
+                Text("Lyrics not found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                androidx.compose.material3.TextButton(onClick = { vm.handle(PlayerIntent.RefreshLyrics) }) {
+                    Text("Retry", color = MaterialTheme.colorScheme.primary)
+                }
             }
-        lyricsState is com.aimp.compose.playback.LyricsUiState.Instrumental ->
-            Text("No lyrics available (Instrumental)", color = MaterialTheme.colorScheme.onBackground)
-        lyricsState is com.aimp.compose.playback.LyricsUiState.Error ->
+        lyricsState is LyricsUiState.Instrumental ->
+            Text("No lyrics available (Instrumental)", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        lyricsState is LyricsUiState.Error ->
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(lyricsState.message, color = Color.Red)
-                Button(onClick = { vm.handle(PlayerIntent.RefreshLyrics) }) { Text("Retry") }
+                Text(lyricsState.message, color = MaterialTheme.colorScheme.error)
+                androidx.compose.material3.TextButton(onClick = { vm.handle(PlayerIntent.RefreshLyrics) }) {
+                    Text("Retry", color = MaterialTheme.colorScheme.primary)
+                }
             }
-        lines.isEmpty() -> Text("No lyrics loaded", color = MaterialTheme.colorScheme.onBackground)
+        lines.isEmpty() -> Text("No lyrics loaded", color = MaterialTheme.colorScheme.onSurfaceVariant)
         mode == 1 || !synced -> Text(
             lines.joinToString("\n") { it.text },
             color = MaterialTheme.colorScheme.onBackground
         )
         else -> LazyColumn(
             state = listState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 180.dp)
+            modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp)
         ) {
             itemsIndexed(lines) { index, line ->
                 Text(
                     text = line.text,
                     color = if (index == currentLine) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = if (index == currentLine) FontWeight.Bold else FontWeight.Normal,
+                    fontSize = if (index == currentLine) 17.sp else 14.sp,
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
             }
